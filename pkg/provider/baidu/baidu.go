@@ -10,7 +10,7 @@ import (
 
 const (
 	APISearch       = "http://musicapi.qianqian.com/v1/restserver/ting?method=baidu.ting.search.merge&from=android&version=8.1.4.0&format=json&type=-1&isNew=1"
-	APIGetSong      = "http://musicapi.qianqian.com/v1/restserver/ting?method=baidu.ting.song.play&format=json&from=android&version=8.1.4.0"
+	APIGetSong      = "http://musicapi.qianqian.com/v1/restserver/ting?method=baidu.ting.song.getInfos&format=json&from=android&version=8.1.4.0"
 	APIGetSongs     = "http://music.taihe.com/data/music/fmlink"
 	APIGetSongLyric = "http://musicapi.qianqian.com/v1/restserver/ting?method=baidu.ting.song.lry&format=json&from=android&version=8.1.4.0"
 	APIGetArtist    = "http://musicapi.qianqian.com/v1/restserver/ting?method=baidu.ting.artist.getSongList&from=android&version=8.1.4.0&format=json&order=2"
@@ -51,15 +51,19 @@ type (
 		} `json:"result"`
 	}
 
+	URL struct {
+		ShowLink    string `json:"show_link"`
+		FileFormat  string `json:"file_format"`
+		FileBitrate int    `json:"file_bitrate"`
+		FileLink    string `json:"file_link"`
+	}
+
 	SongResponse struct {
 		CommonResponse
 		SongInfo Song `json:"songinfo"`
-		Bitrate  struct {
-			ShowLink      string `json:"show_link"`
-			FileExtension string `json:"file_extension"`
-			FileBitrate   int    `json:"file_bitrate"`
-			FileLink      string `json:"file_link"`
-		} `json:"bitrate"`
+		SongURL  struct {
+			URL []URL `json:"url"`
+		} `json:"songurl"`
 	}
 
 	SongsResponse struct {
@@ -203,6 +207,15 @@ func resolve(src ...*Song) []*provider.Song {
 	return songs
 }
 
+func songURL(urls []URL) string {
+	for _, i := range urls {
+		if i.FileFormat == "mp3" {
+			return i.ShowLink
+		}
+	}
+	return ""
+}
+
 func (a *API) patchSongURL(songs ...*Song) {
 	c := concurrency.New(32)
 	for _, s := range songs {
@@ -210,7 +223,7 @@ func (a *API) patchSongURL(songs ...*Song) {
 		go func(s *Song) {
 			resp, err := a.GetSongRaw(s.SongId)
 			if err == nil {
-				s.URL = resp.Bitrate.ShowLink
+				s.URL = songURL(resp.SongURL.URL)
 				if s.LrcLink == "" && resp.SongInfo.LrcLink != "" {
 					s.LrcLink = resp.SongInfo.LrcLink
 				}
